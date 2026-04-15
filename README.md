@@ -16,6 +16,16 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
+### Access from your phone (same Wi‑Fi)
+
+Run the dev server so it’s reachable on your network:
+
+```bash
+npm run dev:mobile
+```
+
+Then on your phone’s browser, open `http://<your-computer-ip>:3000`. To find your computer’s IP: run `ipconfig getifaddr en0` (Mac) or check your system’s network settings.
+
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.

@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:mobile": "node scripts/dev-mobile.cjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"
