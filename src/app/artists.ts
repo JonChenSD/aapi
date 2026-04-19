@@ -8,6 +8,14 @@ export type Artist = {
   name: string;
   /** Shown under the name in the profile panel */
   tagline?: string;
+  /** MP4/WebM under `public/` (e.g. `/videos/Jon.mp4`). */
+  reelVideoSrc?: string;
+  reelVideoPoster?: string;
+  /**
+   * How to box self-hosted video: `wide` = 16:9 (landscape-friendly; tall sources letterbox),
+   * `portrait` = 9:16 typical phone reel.
+   */
+  reelVideoBox?: "wide" | "portrait";
   sections: ArtistSection[];
 };
 
@@ -15,7 +23,9 @@ export const ARTISTS: Artist[] = [
   {
     id: "sebastian-loo",
     name: "Sebastian Loo",
-    tagline: "b. Los Angeles, 1996 · LA-based installation artist",
+    tagline: "b. Los Angeles, 1996\nLA-based installation artist",
+    reelVideoSrc: "/videos/Seb.mp4",
+    reelVideoBox: "portrait",
     sections: [
       {
         paragraphs: [
@@ -37,7 +47,9 @@ export const ARTISTS: Artist[] = [
   {
     id: "rino-kodama",
     name: "Rino Kodama",
-    tagline: "b. 1998 Singapore · based in Albion, California",
+    tagline: "b. 1998 Singapore · based in\nAlbion, California",
+    reelVideoSrc: "/videos/Rino.mp4",
+    reelVideoBox: "portrait",
     sections: [
       {
         paragraphs: [
@@ -68,7 +80,9 @@ export const ARTISTS: Artist[] = [
   {
     id: "jon-chen",
     name: "Jon Chen",
-    tagline: "Artist · Quantum Friend",
+    tagline: "Artist\nQuantum Friend",
+    reelVideoSrc: "/videos/Jon.mp4",
+    reelVideoBox: "portrait",
     sections: [
       {
         paragraphs: [
@@ -95,7 +109,9 @@ export const ARTISTS: Artist[] = [
   {
     id: "jenn-ban",
     name: "Jenn Ban",
-    tagline: "she/they · Ohlone Territory (San Francisco)",
+    tagline: "she/they\nOhlone Territory (San Francisco)",
+    reelVideoSrc: "/videos/Jenn.mp4",
+    reelVideoBox: "portrait",
     sections: [
       {
         paragraphs: [
@@ -126,6 +142,21 @@ export const ARTISTS: Artist[] = [
   },
 ];
 
+/** Curator credit — same shape as `Artist` for shared profile UI. */
+export const CURATOR: Artist = {
+  id: "hamsa-fae",
+  name: "Hamsa Fae",
+  tagline: "Curator",
+  reelVideoSrc: "/videos/Hamsa.mp4",
+  reelVideoPoster: "/images/reels/hamsa-poster.jpg",
+  reelVideoBox: "portrait",
+  sections: [],
+};
+
 export function getArtistById(id: string): Artist | undefined {
   return ARTISTS.find((a) => a.id === id);
+}
+
+export function getCreditProfile(id: string): Artist | undefined {
+  return getArtistById(id) ?? (id === CURATOR.id ? CURATOR : undefined);
 }

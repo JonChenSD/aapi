@@ -44,6 +44,10 @@ if (ips.length) {
   );
 }
 console.log("");
+console.log(
+  `  ${dim}If your phone can’t open the LAN URL: same Wi‑Fi, disable VPN, and allow inbound TCP ${port} (macOS Firewall / Little Snitch / router).${reset}`
+);
+console.log("");
 
 const child = spawn(
   process.execPath,

@@ -8,6 +8,9 @@ import {
   useState,
   type CSSProperties,
 } from "react";
+import type { WorkMetadataMap } from "../lib/work-metadata";
+import { workImageAlt } from "../lib/work-metadata";
+import { getArtistById } from "./artists";
 import ArtistCredits from "./ArtistCredits";
 import SquiggleCursor from "./SquiggleCursor";
 
@@ -218,7 +221,19 @@ const HOVER_MASK = { solid: 50, fade: 95 };
 const NEAR_CIRCLE_THRESHOLD = 8; // viewport % – circle expands when cursor this close
 /** Must stay above any accumulated slot.zIndex from respawns so the expanded image stacks on top. */
 const FOCUSED_SLOT_Z = 1_000_000;
+/** Full-viewport dim layer sits just under the enlarged image. */
+const FOCUSED_BACKDROP_Z = FOCUSED_SLOT_Z - 1;
+/** Close control and squiggle above lightbox backdrop, below nothing else. */
+const FOCUSED_UI_Z = FOCUSED_SLOT_Z + 2;
+const FOCUSED_LIGHTBOX_MS = 220;
 const CIRCLE_EXPAND_SCALE = 2.4;
+const CIRCLE_SIZE_MS = 420;
+/** Enlarge hint: soft shadow + light fill — no hard outline ring. */
+const EXPAND_DOT_STYLE: CSSProperties = {
+  boxShadow:
+    "0 3px 16px rgba(0,0,0,0.4), 0 0 22px rgba(255,255,255,0.32)",
+  backgroundColor: "rgba(255,255,255,0.24)",
+};
 const FOCUSED_MAX_WIDTH_PX = 1200;
 const FOCUSED_MAX_HEIGHT_PX = 900;
 const FOCUSED_PADDING_VW = 6;
@@ -226,6 +241,7 @@ const FOCUSED_PADDING_VH = 5;
 
 export default function ImageCycle({
   images,
+  workMetadata,
   entrancePhase = "live",
   entranceImageFadeMs = 1200,
   onSpawnChord,
@@ -234,10 +250,10 @@ export default function ImageCycle({
   imageCycleDurationSeconds,
   advanceScheduleRef,
   cursorSyncRef,
-  audioDebug,
 }: {
   images: string[];
-  /** entering: black field + rainbow thread only; live: images fade in and debug squiggle returns */
+  workMetadata?: WorkMetadataMap;
+  /** entering: black field + rainbow thread only; live: images fade in and squiggle returns */
   entrancePhase?: "entering" | "live";
   /** Opacity fade for the image world when entering → live (ms). */
   entranceImageFadeMs?: number;
@@ -247,14 +263,6 @@ export default function ImageCycle({
   imageCycleDurationSeconds?: number; // hold until next chord + fade over 6 arp counts
   advanceScheduleRef?: React.MutableRefObject<{ advanceNextSlot: (step: number) => void } | null>;
   cursorSyncRef?: React.MutableRefObject<{ x: number; y: number }>;
-  audioDebug?: {
-    arpMuted: boolean;
-    setArpMuted: (v: boolean) => void;
-    spawnChordsMuted: boolean;
-    setSpawnChordsMuted: (v: boolean) => void;
-    padMuted: boolean;
-    setPadMuted: (v: boolean) => void;
-  };
 }) {
   const slotCount = WORLD_SLOT_COUNT;
   const [indices, setIndices] = useState<number[]>(() =>
@@ -263,11 +271,11 @@ export default function ImageCycle({
   const [aspectRatios, setAspectRatios] = useState<number[]>(() =>
     Array(slotCount).fill(1)
   );
-  const [debugOpen, setDebugOpen] = useState(false);
-  const [debug, setDebug] = useState(DEFAULT_DEBUG);
+  const debug = DEFAULT_DEBUG;
   const [cursor, setCursor] = useState({ x: 50, y: 50 });
   const [hoveredSlotIndex, setHoveredSlotIndex] = useState<number | null>(null);
   const [focusedSlotIndex, setFocusedSlotIndex] = useState<number | null>(null);
+  const [lightboxOpaque, setLightboxOpaque] = useState(false);
   const focusedSlotIndexRef = useRef<number | null>(null);
   focusedSlotIndexRef.current = focusedSlotIndex;
   const [slots, setSlots] = useState<Slot[]>([]);
@@ -302,6 +310,18 @@ export default function ImageCycle({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
+  }, [focusedSlotIndex]);
+
+  useEffect(() => {
+    if (focusedSlotIndex === null) {
+      setLightboxOpaque(false);
+      return;
+    }
+    setLightboxOpaque(false);
+    const id = window.requestAnimationFrame(() => {
+      setLightboxOpaque(true);
+    });
+    return () => window.cancelAnimationFrame(id);
   }, [focusedSlotIndex]);
 
   const setCursorFromClientCoords = useCallback((clientX: number, clientY: number) => {
@@ -456,17 +476,14 @@ export default function ImageCycle({
       } as React.CSSProperties;
     };
 
-  /** Top-centered close control (matches layout when a slot is focused). */
+  /** Top-right close — ~center of 24×24 control in `.modal-close-slot` (1.5rem + safe area). */
   const closeBtnCenter =
     windowSize.w > 0 && windowSize.h > 0
       ? {
-          x: 50,
-          y: (100 * (20 + 12 * CIRCLE_EXPAND_SCALE)) / windowSize.h,
+          x: ((windowSize.w - 36) / windowSize.w) * 100,
+          y: (36 / windowSize.h) * 100,
         }
-      : { x: 50, y: 6 };
-  const distanceToClose = dist(cursor.x, cursor.y, closeBtnCenter.x, closeBtnCenter.y);
-  const closeCircleExpanded =
-    focusedSlotIndex !== null && distanceToClose < NEAR_CIRCLE_THRESHOLD;
+      : { x: 94, y: 5 };
 
   const squiggleAttractors = useMemo(() => {
     const out: { x: number; y: number }[] = slots.map((slot) => {
@@ -492,20 +509,26 @@ export default function ImageCycle({
     slots.length > 0 ? Math.max(...slots.map((s) => s.zIndex)) : 1;
   const parallaxZSpan = Math.max(parallaxZMax - parallaxZMin, 1);
 
+  const focusedLightboxSrc =
+    focusedSlotIndex !== null && images.length > 0
+      ? images[indices[focusedSlotIndex] % images.length]
+      : null;
+  const focusedLightboxAlt =
+    focusedLightboxSrc != null && focusedSlotIndex !== null
+      ? workImageAlt(
+          focusedLightboxSrc,
+          workMetadata,
+          focusedSlotIndex,
+          (id) => getArtistById(id)?.name
+        )
+      : "";
+
   return (
     <>
       <div
         className={`fixed inset-0 z-10 overflow-hidden ${focusedSlotIndex !== null ? "z-50" : ""} cursor-none touch-manipulation`}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
-        onClick={(e) => {
-          if (
-            focusedSlotIndex !== null &&
-            !(e.target as HTMLElement).closest?.("[data-focused-slot]")
-          ) {
-            setFocusedSlotIndex(null);
-          }
-        }}
       >
         {/* World container: fixed framing; slots use parallax only */}
         <div
@@ -525,8 +548,20 @@ export default function ImageCycle({
           >
             <div className="group relative h-full w-full overflow-visible">
               {slots.map((slot, i) => {
+                if (focusedSlotIndex === i) {
+                  return (
+                    <div
+                      key={i}
+                      className="pointer-events-none absolute left-0 top-0 h-0 w-0 overflow-hidden opacity-0"
+                      aria-hidden
+                    />
+                  );
+                }
+
                 const src = images[indices[i] % images.length];
-                const isFocused = focusedSlotIndex === i;
+                const imgAlt = workImageAlt(src, workMetadata, i, (id) =>
+                  getArtistById(id)?.name
+                );
                 const isHovered = hoveredSlotIndex === i;
                 const slotCx = slot.left + slot.width / 2;
                 const slotCy = slot.top + slot.height / 2;
@@ -538,7 +573,7 @@ export default function ImageCycle({
                   slotScreenCx,
                   slotScreenCy
                 );
-                const isNear = !isFocused && distanceToCursor < NEAR_CIRCLE_THRESHOLD;
+                const isNear = distanceToCursor < NEAR_CIRCLE_THRESHOLD;
                 const circleExpanded = isHovered || isNear;
                 const circlePx = circleExpanded ? 24 * CIRCLE_EXPAND_SCALE : 24;
                 const tapTargetPx = Math.max(44, circlePx);
@@ -554,142 +589,162 @@ export default function ImageCycle({
                 const maskGradientHover = `radial-gradient(ellipse ${rx}% ${ry}% at 50% 50%, black ${HOVER_MASK.solid}%, transparent ${HOVER_MASK.fade}%)`;
                 const depth =
                   (slot.zIndex - parallaxZMin) / parallaxZSpan;
-                const dx = isFocused
-                  ? 0
-                  : (slotScreenCx - cursor.x) * PARALLAX_STRENGTH * depth;
-                const dy = isFocused
-                  ? 0
-                  : (slotScreenCy - cursor.y) * PARALLAX_STRENGTH * depth;
-                const slotOuterStyle: CSSProperties = isFocused
-                  ? {
-                      position: "fixed",
-                      left: "50%",
-                      top: "50%",
-                      width: `min(${FOCUSED_MAX_WIDTH_PX}px, calc(100vw - ${FOCUSED_PADDING_VW * 2}vw))`,
-                      height: `min(${FOCUSED_MAX_HEIGHT_PX}px, calc(100vh - ${FOCUSED_PADDING_VH * 2}vh))`,
-                      zIndex: FOCUSED_SLOT_Z,
-                      transform: "translate(-50%, -50%)",
-                      transition:
-                        "width 0.45s ease-out, height 0.45s ease-out, transform 0.35s ease-out",
-                    }
-                  : {
-                      left: `${(slot.left / DISPLAY_WORLD_SIZE) * 100}%`,
-                      top: `${(slot.top / DISPLAY_WORLD_SIZE) * 100}%`,
-                      width: `${(slot.width / DISPLAY_WORLD_SIZE) * 100}%`,
-                      height: `${(slot.height / DISPLAY_WORLD_SIZE) * 100}%`,
-                      zIndex: slot.zIndex,
-                      transform: `translate(${dx}vw, ${dy}vh)`,
-                      transition:
-                        "left 0.5s ease-out, top 0.5s ease-out, width 0.5s ease-out, height 0.5s ease-out, transform 300ms ease-out",
-                    };
-            return (
-              <div
-                key={i}
-                className={`overflow-visible ease-out ${
-                  isFocused
-                    ? "focus-overlay pointer-events-auto fixed"
-                    : "pointer-events-none absolute"
-                }`}
-                data-focused-slot={isFocused ? true : undefined}
-                style={slotOuterStyle}
-              >
-                <div
-                  className={`pointer-events-none absolute inset-0 ${isFocused ? "focus-layer-oval" : ""}`}
-                  style={{
-                    maskImage: maskGradientDefault,
-                    WebkitMaskImage: maskGradientDefault,
-                    maskSize: "100% 100%",
-                    maskRepeat: "no-repeat",
-                    maskPosition: "center",
-                  }}
-                >
+                const dx =
+                  (slotScreenCx - cursor.x) * PARALLAX_STRENGTH * depth;
+                const dy =
+                  (slotScreenCy - cursor.y) * PARALLAX_STRENGTH * depth;
+                const slotOuterStyle: CSSProperties = {
+                  left: `${(slot.left / DISPLAY_WORLD_SIZE) * 100}%`,
+                  top: `${(slot.top / DISPLAY_WORLD_SIZE) * 100}%`,
+                  width: `${(slot.width / DISPLAY_WORLD_SIZE) * 100}%`,
+                  height: `${(slot.height / DISPLAY_WORLD_SIZE) * 100}%`,
+                  zIndex: slot.zIndex,
+                  transform: `translate(${dx}vw, ${dy}vh)`,
+                  transition:
+                    "left 0.5s ease-out, top 0.5s ease-out, width 0.5s ease-out, height 0.5s ease-out, transform 300ms ease-out",
+                };
+                return (
                   <div
-                    key={`${slotAnimEpoch}-${i}-${indices[i]}`}
-                    className="mind-cycle relative flex h-full w-full items-center justify-center overflow-visible"
-                    style={{
-                      ...styleVars(slot.durationScale),
-                      animationDelay: `${slot.delay}s`,
-                    }}
-                    onAnimationEnd={() => {
-                      if (!syncToTempo && focusedSlotIndexRef.current !== i)
-                        advanceSlot(i);
-                    }}
+                    key={i}
+                    className="pointer-events-none absolute overflow-visible ease-out"
+                    style={slotOuterStyle}
                   >
-                    <img
-                      src={src}
-                      alt=""
-                      className="h-full w-full object-contain object-center"
-                      draggable={false}
-                      onLoad={(e) => {
-                        const img = e.currentTarget;
-                        setSlotAspect(i, img.naturalWidth, img.naturalHeight);
-                      }}
-                    />
-                    {!isFocused && (
-                      <button
-                        type="button"
-                        className="pointer-events-auto absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 cursor-pointer touch-manipulation items-center justify-center rounded-full border-0 bg-transparent p-0 transition-[width,height] duration-700 ease-out [-webkit-tap-highlight-color:transparent]"
+                    <div className="relative h-full">
+                      <div
+                        className="pointer-events-none absolute inset-0"
                         style={{
-                          width: tapTargetPx,
-                          height: tapTargetPx,
+                          maskImage: maskGradientDefault,
+                          WebkitMaskImage: maskGradientDefault,
+                          maskSize: "100% 100%",
+                          maskRepeat: "no-repeat",
+                          maskPosition: "center",
                         }}
-                        onMouseEnter={() => setHoveredSlotIndex(i)}
-                        onMouseLeave={() => setHoveredSlotIndex(null)}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setFocusedSlotIndex(i);
-                        }}
-                        aria-label={`Focus image ${i + 1}`}
                       >
-                        <span
-                          className="shrink-0 rounded-full border border-white/70"
+                        <div
+                          key={`${slotAnimEpoch}-${i}-${indices[i]}`}
+                          className="mind-cycle relative flex h-full w-full items-center justify-center overflow-visible"
                           style={{
-                            borderWidth: 1,
-                            width: circlePx,
-                            height: circlePx,
+                            ...styleVars(slot.durationScale),
+                            animationDelay: `${slot.delay}s`,
                           }}
+                          onAnimationEnd={() => {
+                            if (!syncToTempo && focusedSlotIndexRef.current !== i)
+                              advanceSlot(i);
+                          }}
+                        >
+                          <img
+                            src={src}
+                            alt={imgAlt}
+                            className="h-full w-full object-contain object-center"
+                            draggable={false}
+                            onLoad={(e) => {
+                              const img = e.currentTarget;
+                              setSlotAspect(i, img.naturalWidth, img.naturalHeight);
+                            }}
+                          />
+                          <button
+                            type="button"
+                            className="pointer-events-auto absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 cursor-pointer touch-manipulation items-center justify-center rounded-full border-0 bg-transparent p-0 ease-out [-webkit-tap-highlight-color:transparent]"
+                            style={{
+                              width: tapTargetPx,
+                              height: tapTargetPx,
+                              transition: `width ${CIRCLE_SIZE_MS}ms ease-out, height ${CIRCLE_SIZE_MS}ms ease-out`,
+                            }}
+                            onMouseEnter={() => setHoveredSlotIndex(i)}
+                            onMouseLeave={() => setHoveredSlotIndex(null)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setFocusedSlotIndex(i);
+                            }}
+                            aria-label={`Enlarge ${imgAlt}`}
+                            aria-expanded={false}
+                            aria-haspopup="dialog"
+                          >
+                            <span
+                              className="shrink-0 rounded-full"
+                              style={{
+                                width: circlePx,
+                                height: circlePx,
+                                transition: `width ${CIRCLE_SIZE_MS}ms ease-out, height ${CIRCLE_SIZE_MS}ms ease-out, box-shadow ${CIRCLE_SIZE_MS}ms ease-out, background-color ${CIRCLE_SIZE_MS}ms ease-out`,
+                                ...EXPAND_DOT_STYLE,
+                              }}
+                              aria-hidden
+                            />
+                          </button>
+                        </div>
+                      </div>
+                      <div
+                        className="pointer-events-none absolute inset-0 flex items-center justify-center transition-opacity duration-700 ease-out"
+                        style={{
+                          opacity: isHovered ? 1 : 0,
+                          maskImage: maskGradientHover,
+                          WebkitMaskImage: maskGradientHover,
+                          maskSize: "100% 100%",
+                          maskRepeat: "no-repeat",
+                          maskPosition: "center",
+                        }}
+                      >
+                        <img
+                          src={src}
+                          alt=""
+                          className="h-full w-full object-contain object-center"
+                          draggable={false}
                           aria-hidden
                         />
-                      </button>
-                    )}
+                      </div>
+                    </div>
                   </div>
-                </div>
-                {isFocused ? (
-                  <div className="focus-layer-full pointer-events-none absolute inset-0 flex items-center justify-center opacity-0">
-                    <img
-                      src={src}
-                      alt=""
-                      className="h-full w-full object-contain object-center"
-                      draggable={false}
-                    />
-                  </div>
-                ) : (
-                  <div
-                    className="pointer-events-none absolute inset-0 flex items-center justify-center transition-opacity duration-700 ease-out"
-                    style={{
-                      opacity: isHovered ? 1 : 0,
-                      maskImage: maskGradientHover,
-                      WebkitMaskImage: maskGradientHover,
-                      maskSize: "100% 100%",
-                      maskRepeat: "no-repeat",
-                      maskPosition: "center",
-                    }}
-                  >
-                    <img
-                      src={src}
-                      alt=""
-                      className="h-full w-full object-contain object-center"
-                      draggable={false}
-                    />
-                  </div>
-                )}
-              </div>
-            );
-          })}
+                );
+              })}
           </div>
         </div>
       </div>
       </div>
+
+      {focusedSlotIndex !== null && focusedLightboxSrc && (
+        <>
+          <button
+            type="button"
+            className="fixed inset-0 cursor-default border-0 bg-black/55 p-0"
+            style={{
+              zIndex: FOCUSED_BACKDROP_Z,
+              opacity: lightboxOpaque ? 1 : 0,
+              transition: `opacity ${FOCUSED_LIGHTBOX_MS}ms ease-out`,
+            }}
+            aria-label="Close enlarged image"
+            onClick={() => setFocusedSlotIndex(null)}
+          />
+          <div
+            role="presentation"
+            className="fixed inset-0 flex cursor-default items-center justify-center px-[6vw] py-[5vh]"
+            style={{
+              zIndex: FOCUSED_SLOT_Z,
+              opacity: lightboxOpaque ? 1 : 0,
+              transition: `opacity ${FOCUSED_LIGHTBOX_MS}ms ease-out`,
+            }}
+            onClick={() => setFocusedSlotIndex(null)}
+            aria-hidden
+          >
+            <img
+              src={focusedLightboxSrc}
+              alt={focusedLightboxAlt}
+              className="pointer-events-auto object-contain object-center"
+              style={{
+                maxWidth: `min(${FOCUSED_MAX_WIDTH_PX}px, calc(100vw - ${FOCUSED_PADDING_VW * 2}vw))`,
+                maxHeight: `min(${FOCUSED_MAX_HEIGHT_PX}px, calc(100vh - ${FOCUSED_PADDING_VH * 2}vh))`,
+              }}
+              draggable={false}
+              onClick={(e) => e.stopPropagation()}
+              onLoad={(e) => {
+                const fi = focusedSlotIndex;
+                if (fi === null) return;
+                const img = e.currentTarget;
+                setSlotAspect(fi, img.naturalWidth, img.naturalHeight);
+              }}
+            />
+          </div>
+        </>
+      )}
 
       <SquiggleCursor
         mouse={cursor}
@@ -699,34 +754,23 @@ export default function ImageCycle({
 
       {focusedSlotIndex !== null && (
         <div
-          className="fixed inset-0 z-40 bg-transparent"
-          aria-hidden
-          tabIndex={-1}
-        />
-      )}
-
-      {focusedSlotIndex !== null && (
-        <div
-          className="fixed left-1/2 top-[max(1rem,env(safe-area-inset-top))] z-50 flex -translate-x-1/2 items-center justify-center"
-          style={{
-            width: 24 * CIRCLE_EXPAND_SCALE,
-            height: 24 * CIRCLE_EXPAND_SCALE,
-          }}
+          className="modal-close-slot pointer-events-none flex items-center justify-center"
+          style={{ zIndex: FOCUSED_UI_Z }}
         >
           <button
             type="button"
             onClick={() => setFocusedSlotIndex(null)}
-            className="close-btn-circle flex items-center justify-center rounded-full border border-white/70 text-white/90 transition-[width,height] duration-200 ease-out"
+            className="close-btn-circle pointer-events-auto flex items-center justify-center rounded-full border border-white/70 text-white/90 transition-[width,height] duration-200 ease-out"
             style={{
               borderWidth: 1,
-              width: closeCircleExpanded ? 24 * CIRCLE_EXPAND_SCALE : 24,
-              height: closeCircleExpanded ? 24 * CIRCLE_EXPAND_SCALE : 24,
+              width: 24,
+              height: 24,
             }}
-            aria-label="Close focused image"
+            aria-label="Close enlarged image"
           >
             <span className="close-fill" aria-hidden />
             <svg
-              className="close-icon relative z-10 transition-colors duration-200 ease-out"
+              className="close-icon relative z-10"
               width={14}
               height={14}
               viewBox="0 0 14 14"
@@ -743,177 +787,6 @@ export default function ImageCycle({
       )}
 
       {showChrome && <ArtistCredits />}
-
-      {showChrome && (
-      <div className="fixed bottom-3 left-3 z-10 flex max-w-[min(100vw-1.5rem,16rem)] flex-col gap-4">
-        <button
-          type="button"
-          onClick={() => setDebugOpen((o) => !o)}
-          className="rounded bg-white/90 px-3 py-1.5 text-xs font-medium text-black shadow hover:bg-white"
-        >
-          {debugOpen ? "Hide debug" : "Debug"}
-        </button>
-        {debugOpen && (
-          <div className="mt-2 w-64 rounded bg-black/80 p-3 text-white shadow-lg backdrop-blur">
-            <div className="space-y-4 text-xs">
-              <label className="block">
-                <span className="mb-1 block">Duration</span>
-                <input
-                  type="range"
-                  min={4}
-                  max={30}
-                  step={1}
-                  value={debug.duration}
-                  onChange={(e) =>
-                    setDebug((d) => ({ ...d, duration: Number(e.target.value) }))
-                  }
-                  className="h-2 w-full accent-white/80"
-                />
-                <span className="mt-0.5 block text-right text-white/60">
-                  {debug.duration}s
-                </span>
-              </label>
-              <label className="block">
-                <span className="mb-1 block">Blur</span>
-                <input
-                  type="range"
-                  min={0}
-                  max={80}
-                  step={2}
-                  value={debug.blur}
-                  onChange={(e) =>
-                    setDebug((d) => ({ ...d, blur: Number(e.target.value) }))
-                  }
-                  className="h-2 w-full accent-white/80"
-                />
-                <span className="mt-0.5 block text-right text-white/60">
-                  {debug.blur}px
-                </span>
-              </label>
-              <div className="space-y-2">
-                <span className="block">Mask feather (gradient)</span>
-                <div
-                  className="h-3 w-full rounded-full border border-white/20"
-                  style={{
-                    background: `linear-gradient(to right, #fff 0%, #fff ${debug.maskFadeStart}%, transparent ${debug.maskFadeEnd}%)`,
-                  }}
-                />
-                <div className="relative flex gap-1">
-                  <label className="flex-1">
-                    <span className="sr-only">Solid until</span>
-                    <input
-                      type="range"
-                      min={0}
-                      max={Math.min(50, debug.maskFadeEnd - 5)}
-                      step={1}
-                      value={debug.maskFadeStart}
-                      onChange={(e) => {
-                        const v = Number(e.target.value);
-                        setDebug((d) => ({
-                          ...d,
-                          maskFadeStart: v,
-                          maskFadeEnd: Math.max(d.maskFadeEnd, v + 5),
-                        }));
-                      }}
-                      className="h-2 w-full accent-white/80"
-                    />
-                  </label>
-                  <label className="flex-1">
-                    <span className="sr-only">Transparent at</span>
-                    <input
-                      type="range"
-                      min={Math.max(40, debug.maskFadeStart + 5)}
-                      max={95}
-                      step={1}
-                      value={debug.maskFadeEnd}
-                      onChange={(e) => {
-                        const v = Number(e.target.value);
-                        setDebug((d) => ({
-                          ...d,
-                          maskFadeEnd: v,
-                          maskFadeStart: Math.min(d.maskFadeStart, v - 5),
-                        }));
-                      }}
-                      className="h-2 w-full accent-white/80"
-                    />
-                  </label>
-                </div>
-                <div className="flex justify-between text-white/50">
-                  <span>Solid {debug.maskFadeStart}%</span>
-                  <span>Fade {debug.maskFadeEnd}%</span>
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <span className="block">Cursor</span>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setDebug((d) => ({ ...d, squiggleStyle: "line" }))}
-                    className={`flex-1 rounded py-1.5 text-white/90 ${
-                      debug.squiggleStyle === "line"
-                        ? "bg-white/20 ring-1 ring-white/40"
-                        : "bg-white/5 hover:bg-white/10"
-                    }`}
-                  >
-                    Line
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDebug((d) => ({ ...d, squiggleStyle: "rainbow" }))}
-                    className={`flex-1 rounded py-1.5 text-white/90 ${
-                      debug.squiggleStyle === "rainbow"
-                        ? "bg-white/20 ring-1 ring-white/40"
-                        : "bg-white/5 hover:bg-white/10"
-                    }`}
-                  >
-                    Rainbow
-                  </button>
-                </div>
-              </div>
-              {audioDebug && (
-                <div className="space-y-2 border-t border-white/20 pt-3">
-                  <span className="block text-white/80">Audio (toggle to compare)</span>
-                  <label className="flex cursor-pointer items-center justify-between gap-2">
-                    <span className="text-white/70">Arpeggio</span>
-                    <input
-                      type="checkbox"
-                      checked={!audioDebug.arpMuted}
-                      onChange={() => audioDebug.setArpMuted(!audioDebug.arpMuted)}
-                      className="h-3.5 w-3.5 accent-white/80"
-                    />
-                  </label>
-                  <label className="flex cursor-pointer items-center justify-between gap-2">
-                    <span className="text-white/70">Spawn chords</span>
-                    <input
-                      type="checkbox"
-                      checked={!audioDebug.spawnChordsMuted}
-                      onChange={() => audioDebug.setSpawnChordsMuted(!audioDebug.spawnChordsMuted)}
-                      className="h-3.5 w-3.5 accent-white/80"
-                    />
-                  </label>
-                  <label className="flex cursor-pointer items-center justify-between gap-2">
-                    <span className="text-white/70">Pad (water)</span>
-                    <input
-                      type="checkbox"
-                      checked={!audioDebug.padMuted}
-                      onChange={() => audioDebug.setPadMuted(!audioDebug.padMuted)}
-                      className="h-3.5 w-3.5 accent-white/80"
-                    />
-                  </label>
-                </div>
-              )}
-              <button
-                type="button"
-                onClick={() => setDebug(DEFAULT_DEBUG)}
-                className="mt-2 w-full rounded border border-white/30 py-1.5 text-white/80 hover:bg-white/10 hover:text-white"
-              >
-                Reset
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-      )}
     </>
   );
 }
