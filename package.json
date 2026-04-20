@@ -6,6 +6,7 @@
     "dev": "next dev",
     "dev:mobile": "node scripts/dev-mobile.cjs",
     "build": "next build",
+    "build:github-pages": "STATIC_EXPORT=1 next build",
     "start": "next start",
     "lint": "eslint"
   },

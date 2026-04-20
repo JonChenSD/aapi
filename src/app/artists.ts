@@ -1,3 +1,5 @@
+import { withBasePath } from "@/lib/base-path";
+
 export type ArtistSection = {
   title?: string;
   paragraphs: string[];
@@ -24,7 +26,7 @@ export const ARTISTS: Artist[] = [
     id: "sebastian-loo",
     name: "Sebastian Loo",
     tagline: "b. Los Angeles, 1996\nLA-based installation artist",
-    reelVideoSrc: "/videos/Seb.mp4",
+    reelVideoSrc: withBasePath("/videos/Seb.mp4"),
     reelVideoBox: "portrait",
     sections: [
       {
@@ -48,7 +50,7 @@ export const ARTISTS: Artist[] = [
     id: "rino-kodama",
     name: "Rino Kodama",
     tagline: "b. 1998 Singapore · based in\nAlbion, California",
-    reelVideoSrc: "/videos/Rino.mp4",
+    reelVideoSrc: withBasePath("/videos/Rino.mp4"),
     reelVideoBox: "portrait",
     sections: [
       {
@@ -81,7 +83,7 @@ export const ARTISTS: Artist[] = [
     id: "jon-chen",
     name: "Jon Chen",
     tagline: "Artist\nQuantum Friend",
-    reelVideoSrc: "/videos/Jon.mp4",
+    reelVideoSrc: withBasePath("/videos/Jon.mp4"),
     reelVideoBox: "portrait",
     sections: [
       {
@@ -110,7 +112,7 @@ export const ARTISTS: Artist[] = [
     id: "jenn-ban",
     name: "Jenn Ban",
     tagline: "she/they\nOhlone Territory (San Francisco)",
-    reelVideoSrc: "/videos/Jenn.mp4",
+    reelVideoSrc: withBasePath("/videos/Jenn.mp4"),
     reelVideoBox: "portrait",
     sections: [
       {
@@ -147,8 +149,8 @@ export const CURATOR: Artist = {
   id: "hamsa-fae",
   name: "Hamsa Fae",
   tagline: "Curator",
-  reelVideoSrc: "/videos/Hamsa.mp4",
-  reelVideoPoster: "/images/reels/hamsa-poster.jpg",
+  reelVideoSrc: withBasePath("/videos/Hamsa.mp4"),
+  reelVideoPoster: withBasePath("/images/reels/hamsa-poster.jpg"),
   reelVideoBox: "portrait",
   sections: [],
 };

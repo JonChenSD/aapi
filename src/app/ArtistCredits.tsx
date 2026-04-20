@@ -9,14 +9,16 @@ import {
   type Artist,
 } from "./artists";
 import ArtistReelBlock from "./ArtistReelBlock";
+import { withBasePath } from "@/lib/base-path";
 import { VIEWPORT_EDGE_LEFT } from "@/lib/viewport-insets";
 
 const ARTIST_MODAL_FADE_MS = 220;
 
 const PREBYS_URL = "https://www.prebysfdn.org/";
 const VIET_VOICES_URL = "https://www.vietvoices.org/";
-const LOGO_PREBYS = "/images/logos/PrebysLogo.png";
-const LOGO_VIET_VOICES = "/images/logos/vietvoices.png";
+
+const LOGO_PREBYS = withBasePath("/images/logos/PrebysLogo.png");
+const LOGO_VIET_VOICES = withBasePath("/images/logos/vietvoices.png");
 
 function ArtistProfileText({ artist }: { artist: Artist }) {
   const hasReel = Boolean(artist.reelVideoSrc);
