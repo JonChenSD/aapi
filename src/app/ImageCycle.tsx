@@ -526,7 +526,7 @@ export default function ImageCycle({
   return (
     <>
       <div
-        className={`fixed inset-0 z-10 overflow-hidden ${focusedSlotIndex !== null ? "z-50" : ""} cursor-none touch-manipulation`}
+        className={`fixed inset-0 z-10 overflow-hidden ${focusedSlotIndex !== null ? "z-50" : ""} cursor-none touch-none`}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
       >
@@ -635,7 +635,7 @@ export default function ImageCycle({
                           <img
                             src={src}
                             alt={imgAlt}
-                            className="h-full w-full object-contain object-center"
+                            className="h-full w-full touch-none object-contain object-center"
                             draggable={false}
                             onLoad={(e) => {
                               const img = e.currentTarget;
@@ -687,7 +687,7 @@ export default function ImageCycle({
                         <img
                           src={src}
                           alt=""
-                          className="h-full w-full object-contain object-center"
+                          className="h-full w-full touch-none object-contain object-center"
                           draggable={false}
                           aria-hidden
                         />
@@ -705,7 +705,7 @@ export default function ImageCycle({
         <>
           <button
             type="button"
-            className="fixed inset-0 cursor-default border-0 bg-black/55 p-0"
+            className="fixed inset-0 cursor-default touch-none border-0 bg-black/55 p-0"
             style={{
               zIndex: FOCUSED_BACKDROP_Z,
               opacity: lightboxOpaque ? 1 : 0,
@@ -728,7 +728,7 @@ export default function ImageCycle({
             <img
               src={focusedLightboxSrc}
               alt={focusedLightboxAlt}
-              className="pointer-events-auto object-contain object-center"
+              className="pointer-events-auto touch-none object-contain object-center"
               style={{
                 maxWidth: `min(${FOCUSED_MAX_WIDTH_PX}px, calc(100vw - ${FOCUSED_PADDING_VW * 2}vw))`,
                 maxHeight: `min(${FOCUSED_MAX_HEIGHT_PX}px, calc(100vh - ${FOCUSED_PADDING_VH * 2}vh))`,

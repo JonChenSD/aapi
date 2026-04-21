@@ -14,6 +14,8 @@ html,
 body {
   min-height: 100%;
   background: #000;
+  /* Dampen mobile browser pull-to-refresh / rubber-band when dragging the scene */
+  overscroll-behavior-y: none;
 }
 
 /* Scene images: sharp while visible (0–25%); blur only on the way out — separate from intro word opacity */

@@ -100,7 +100,7 @@ export default function IntroOverlay({
       onClick={() => {
         if (!exiting) onContinue();
       }}
-      className={`intro-overlay fixed inset-0 z-100 flex min-h-dvh w-full flex-col items-center border-0 bg-black outline-none transition-opacity ease-in-out focus-visible:ring-2 focus-visible:ring-white/40 focus-visible:ring-offset-2 focus-visible:ring-offset-black ${exiting ? "pointer-events-none opacity-0" : "cursor-pointer opacity-100"}`}
+      className={`intro-overlay fixed inset-0 z-100 flex min-h-dvh w-full touch-none flex-col items-center border-0 bg-black outline-none transition-opacity ease-in-out focus-visible:ring-2 focus-visible:ring-white/40 focus-visible:ring-offset-2 focus-visible:ring-offset-black ${exiting ? "pointer-events-none opacity-0" : "cursor-pointer opacity-100"}`}
       style={{ transitionDuration: `${exitFadeMs}ms` }}
       aria-label={`${resolvedCta}. Start experience.`}
     >
