@@ -4,12 +4,21 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useAmbientSynth } from "./useAmbientSynth";
 import { ARP_INTERVAL_SECONDS, ADVANCE_EVERY_BEATS, SPAWN_CHORD_DURATION, IMAGE_HOLD_BEATS, IMAGE_FADE_BEATS } from "./useAmbientSynth";
 import type { WorkMetadataMap } from "../lib/work-metadata";
+import {
+  CHROME_ENTRANCE_FADE_MS,
+  CHROME_TOP_LINK,
+  CHROME_TOUCH,
+} from "@/lib/chrome-ui";
 import { VIEWPORT_EDGE_LEFT } from "@/lib/viewport-insets";
 import GalleryOverlay, {
   type GalleryOverlayHandle,
 } from "./GalleryOverlay";
 import ImageCycle from "./ImageCycle";
 import IntroOverlay from "./IntroOverlay";
+import ProphesyBrand, {
+  INTRO_BRAND_CENTER_PHASE_MS,
+  INTRO_BRAND_DOCK_TRANSITION_MS,
+} from "./ProphesyBrand";
 
 type EntrancePhase = "intro" | "fading" | "bridging" | "live";
 
@@ -50,6 +59,10 @@ export default function ClientScene({
   const [synthStarted, setSynthStarted] = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [entrancePhase, setEntrancePhase] = useState<EntrancePhase>("intro");
+  /** 0 = centered hero, 1 = top bar large logo, 2 = shrunk logo + intro body copy may appear. */
+  const [introBeat, setIntroBeat] = useState(0);
+  const [topChromeOpaque, setTopChromeOpaque] = useState(false);
+  const introBeatTimersRef = useRef<number[]>([]);
   const galleryOverlayRef = useRef<GalleryOverlayHandle>(null);
   const galleryToggleRef = useRef<HTMLButtonElement>(null);
   const advanceScheduleRef = useRef<{ advanceNextSlot: (step: number) => void } | null>(null);
@@ -79,19 +92,60 @@ export default function ClientScene({
     return () => clearTimeout(id);
   }, [entrancePhase]);
 
+  const clearIntroBeatTimers = useCallback(() => {
+    for (const id of introBeatTimersRef.current) {
+      window.clearTimeout(id);
+    }
+    introBeatTimersRef.current = [];
+  }, []);
+
+  useEffect(() => {
+    if (entrancePhase !== "intro") {
+      clearIntroBeatTimers();
+      return;
+    }
+    clearIntroBeatTimers();
+    setIntroBeat(0);
+    const tDock = window.setTimeout(() => {
+      setIntroBeat(1);
+    }, INTRO_BRAND_CENTER_PHASE_MS);
+    const tCopy = window.setTimeout(() => {
+      setIntroBeat(2);
+    }, INTRO_BRAND_CENTER_PHASE_MS + INTRO_BRAND_DOCK_TRANSITION_MS);
+    introBeatTimersRef.current = [tDock, tCopy];
+    return clearIntroBeatTimers;
+  }, [entrancePhase, clearIntroBeatTimers]);
+
   const handleIntroContinue = useCallback(() => {
     if (introStartedRef.current) return;
     introStartedRef.current = true;
+    clearIntroBeatTimers();
     startWithNotify();
     setEntrancePhase("fading");
-  }, [startWithNotify]);
+  }, [startWithNotify, clearIntroBeatTimers]);
 
   const showIntro = entrancePhase === "intro" || entrancePhase === "fading";
+  const showIntroCopy =
+    entrancePhase !== "intro" || introBeat >= 2;
   const showScene = entrancePhase !== "intro";
-  const showAudioMute =
-    synthStarted &&
-    entrancePhase !== "intro" &&
-    entrancePhase !== "fading";
+  const showTopChrome = synthStarted && entrancePhase !== "intro";
+
+  useEffect(() => {
+    if (!showTopChrome) {
+      setTopChromeOpaque(false);
+      return;
+    }
+    setTopChromeOpaque(false);
+    let raf0 = 0;
+    let raf1 = 0;
+    raf0 = requestAnimationFrame(() => {
+      raf1 = requestAnimationFrame(() => setTopChromeOpaque(true));
+    });
+    return () => {
+      cancelAnimationFrame(raf0);
+      cancelAnimationFrame(raf1);
+    };
+  }, [showTopChrome]);
 
   const allAudioMuted = arpMuted && spawnChordsMuted && padMuted;
 
@@ -104,19 +158,25 @@ export default function ClientScene({
 
   return (
     <>
+      <ProphesyBrand entrancePhase={entrancePhase} introBeat={introBeat} />
       {showIntro && (
         <IntroOverlay
           exiting={entrancePhase === "fading"}
           onContinue={handleIntroContinue}
           onFadeComplete={() => setEntrancePhase("bridging")}
+          showIntroCopy={showIntroCopy}
         />
       )}
-      {showAudioMute && (
+      {showTopChrome && (
         <>
           <button
             type="button"
             onClick={toggleAudioMute}
-            className="intro-copy syne-mono pointer-events-auto fixed top-[max(1rem,env(safe-area-inset-top))] right-[max(1rem,env(safe-area-inset-right))] z-55 border-0 bg-transparent text-[clamp(0.7rem,1.85vw,0.8rem)] uppercase tracking-[0.055em] text-white/42 transition-colors hover:text-white/78 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white/35"
+            className={`${CHROME_TOP_LINK} pointer-events-auto fixed top-[max(1rem,env(safe-area-inset-top))] right-[max(1rem,env(safe-area-inset-right))] z-55 border-0 bg-transparent hover:text-white/88 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white/35 ${CHROME_TOUCH}`}
+            style={{
+              opacity: topChromeOpaque ? 1 : 0,
+              transition: `opacity ${CHROME_ENTRANCE_FADE_MS}ms ease-out, color 150ms ease-out`,
+            }}
             aria-pressed={allAudioMuted}
             aria-label={allAudioMuted ? "Unmute sound" : "Mute sound"}
           >
@@ -135,16 +195,20 @@ export default function ClientScene({
             aria-label={
               galleryOpen
                 ? "Close gallery and return to scene"
-                : "View works as a grid gallery"
+                : "Open gallery"
             }
             aria-expanded={galleryOpen}
             aria-haspopup="dialog"
-            className={`intro-copy syne-mono pointer-events-auto fixed top-[max(1rem,env(safe-area-inset-top))] max-w-[min(100vw-2rem,15rem)] border-0 bg-transparent p-0 text-left text-[clamp(0.7rem,1.85vw,0.8rem)] uppercase leading-snug tracking-[0.055em] text-white/42 transition-colors hover:text-white/78 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white/35 ${
+            className={`${CHROME_TOP_LINK} pointer-events-auto fixed top-[max(1rem,env(safe-area-inset-top))] max-w-[min(100vw-2rem,15rem)] border-0 bg-transparent p-0 text-left leading-snug hover:text-white/88 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white/35 ${CHROME_TOUCH} ${
               galleryOpen ? "z-1010500" : "z-55"
             }`}
-            style={{ left: VIEWPORT_EDGE_LEFT }}
+            style={{
+              left: VIEWPORT_EDGE_LEFT,
+              opacity: topChromeOpaque ? 1 : 0,
+              transition: `opacity ${CHROME_ENTRANCE_FADE_MS}ms ease-out, color 150ms ease-out`,
+            }}
           >
-            {galleryOpen ? "back to scene" : "view as gallery"}
+            {galleryOpen ? "back to scene" : "gallery"}
           </button>
         </>
       )}

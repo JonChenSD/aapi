@@ -9,10 +9,11 @@ import {
   type CSSProperties,
 } from "react";
 import type { WorkMetadataMap } from "../lib/work-metadata";
-import { workImageAlt } from "../lib/work-metadata";
+import { workImageAlt, workObjectPosition } from "../lib/work-metadata";
 import { getArtistById } from "./artists";
 import ArtistCredits from "./ArtistCredits";
 import SquiggleCursor from "./SquiggleCursor";
+import { CHROME_ENTRANCE_FADE_MS, CHROME_TOUCH } from "@/lib/chrome-ui";
 
 const SLOT_COUNT = 10;
 const SLOT_SIZE_SCALE = 1.68;
@@ -219,6 +220,11 @@ function getInitialIndices(imagesLength: number, count: number): number[] {
 const PARALLAX_STRENGTH = 0.025;
 const HOVER_MASK = { solid: 50, fade: 95 };
 const NEAR_CIRCLE_THRESHOLD = 8; // viewport % – circle expands when cursor this close
+/** Coarse pointer: dwell “pie” completes → open lightbox (desktop keeps click). */
+const MOBILE_DWELL_OPEN_MS = 850;
+const DWELL_PIE_PX = 52;
+const DWELL_PIE_OFFSET_X = 34;
+const DWELL_PIE_OFFSET_Y = -42;
 /** Must stay above any accumulated slot.zIndex from respawns so the expanded image stacks on top. */
 const FOCUSED_SLOT_Z = 1_000_000;
 /** Full-viewport dim layer sits just under the enlarged image. */
@@ -282,6 +288,33 @@ export default function ImageCycle({
   const [windowSize, setWindowSize] = useState({ w: 0, h: 0 });
   const [slotAnimEpoch, setSlotAnimEpoch] = useState(0);
   const prevEntranceRef = useRef(entrancePhase);
+  const [coarsePointer, setCoarsePointer] = useState(false);
+  const [reduceMotion, setReduceMotion] = useState(false);
+  const [pointerPx, setPointerPx] = useState({ x: 0, y: 0 });
+  const [dwellProgress, setDwellProgress] = useState(0);
+  const nearestNearIndexRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(hover: none) and (pointer: coarse)");
+    const sync = () => setCoarsePointer(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const sync = () => setReduceMotion(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+
+  useEffect(() => {
+    const cx = typeof window !== "undefined" ? window.innerWidth / 2 : 0;
+    const cy = typeof window !== "undefined" ? window.innerHeight / 2 : 0;
+    setPointerPx({ x: cx, y: cy });
+  }, []);
 
   // Generate random world slot positions only on client (Math.random)
   useEffect(() => {
@@ -294,6 +327,31 @@ export default function ImageCycle({
     }
     prevEntranceRef.current = entrancePhase;
   }, [entrancePhase]);
+
+  const [creditsOpaque, setCreditsOpaque] = useState(
+    () => entrancePhase === "live",
+  );
+
+  useEffect(() => {
+    if (entrancePhase === "live") {
+      setCreditsOpaque(true);
+      return;
+    }
+    if (reduceMotion) {
+      setCreditsOpaque(true);
+      return;
+    }
+    setCreditsOpaque(false);
+    let raf0 = 0;
+    let raf1 = 0;
+    raf0 = requestAnimationFrame(() => {
+      raf1 = requestAnimationFrame(() => setCreditsOpaque(true));
+    });
+    return () => {
+      cancelAnimationFrame(raf0);
+      cancelAnimationFrame(raf1);
+    };
+  }, [entrancePhase, reduceMotion]);
 
   useEffect(() => {
     const update = () =>
@@ -325,6 +383,7 @@ export default function ImageCycle({
   }, [focusedSlotIndex]);
 
   const setCursorFromClientCoords = useCallback((clientX: number, clientY: number) => {
+    setPointerPx({ x: clientX, y: clientY });
     const x = (clientX / window.innerWidth) * 100;
     const y = (clientY / window.innerHeight) * 100;
     setCursor({ x, y });
@@ -495,11 +554,84 @@ export default function ImageCycle({
     return out;
   }, [slots, focusedSlotIndex, closeBtnCenter.x, closeBtnCenter.y]);
 
+  const nearestNearSlot = useMemo(() => {
+    if (images.length === 0 || slots.length === 0) return null;
+    if (entrancePhase !== "live" || focusedSlotIndex !== null || !windowSize.w)
+      return null;
+    let best: { i: number; d: number } | null = null;
+    for (let i = 0; i < slots.length; i++) {
+      if (i === focusedSlotIndex) continue;
+      const slot = slots[i];
+      const slotCx = slot.left + slot.width / 2;
+      const slotCy = slot.top + slot.height / 2;
+      const slotScreenCx = slotCx - INITIAL_PAN.x;
+      const slotScreenCy = slotCy - INITIAL_PAN.y;
+      const d = dist(cursor.x, cursor.y, slotScreenCx, slotScreenCy);
+      if (d >= NEAR_CIRCLE_THRESHOLD) continue;
+      if (!best || d < best.d) best = { i, d };
+    }
+    return best;
+  }, [
+    images.length,
+    slots,
+    entrancePhase,
+    focusedSlotIndex,
+    windowSize.w,
+    cursor.x,
+    cursor.y,
+  ]);
+
+  nearestNearIndexRef.current = nearestNearSlot?.i ?? null;
+
+  useEffect(() => {
+    const allowDwell =
+      coarsePointer &&
+      !reduceMotion &&
+      entrancePhase === "live" &&
+      focusedSlotIndex === null;
+    if (!allowDwell) {
+      setDwellProgress(0);
+      return;
+    }
+    let raf = 0;
+    let activeSlot: number | null = null;
+    let startTs = 0;
+    const tick = () => {
+      raf = requestAnimationFrame(tick);
+      const idx = nearestNearIndexRef.current;
+      if (idx === null) {
+        if (activeSlot !== null) {
+          activeSlot = null;
+          setDwellProgress(0);
+        }
+        return;
+      }
+      if (idx !== activeSlot) {
+        activeSlot = idx;
+        startTs = performance.now();
+      }
+      const p = Math.min(
+        1,
+        (performance.now() - startTs) / MOBILE_DWELL_OPEN_MS
+      );
+      setDwellProgress((prev) =>
+        Math.abs(prev - p) < 0.04 && p < 1 ? prev : p
+      );
+      if (p >= 1) {
+        setFocusedSlotIndex(idx);
+        activeSlot = null;
+        startTs = 0;
+        setDwellProgress(0);
+      }
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [coarsePointer, reduceMotion, entrancePhase, focusedSlotIndex]);
+
   if (images.length === 0 || slots.length === 0) return null;
 
   const sceneEntering = entrancePhase === "entering";
   const squiggleVariant = sceneEntering ? "rainbow" : debug.squiggleStyle;
-  const showChrome = !sceneEntering;
 
   // Parallax depth must be relative to current z spread — zIndex grows on each respawn (maxZ+1),
   // so raw zIndex/7 would drift upward forever.
@@ -522,6 +654,10 @@ export default function ImageCycle({
           (id) => getArtistById(id)?.name
         )
       : "";
+  const lightboxObjPos =
+    focusedLightboxSrc != null
+      ? workObjectPosition(focusedLightboxSrc, workMetadata)
+      : undefined;
 
   return (
     <>
@@ -562,6 +698,7 @@ export default function ImageCycle({
                 const imgAlt = workImageAlt(src, workMetadata, i, (id) =>
                   getArtistById(id)?.name
                 );
+                const imgObjPos = workObjectPosition(src, workMetadata);
                 const isHovered = hoveredSlotIndex === i;
                 const slotCx = slot.left + slot.width / 2;
                 const slotCy = slot.top + slot.height / 2;
@@ -635,7 +772,12 @@ export default function ImageCycle({
                           <img
                             src={src}
                             alt={imgAlt}
-                            className="h-full w-full touch-none object-contain object-center"
+                            className={`h-full w-full touch-none object-contain${imgObjPos ? "" : " object-center"}`}
+                            style={
+                              imgObjPos
+                                ? ({ objectPosition: imgObjPos } as CSSProperties)
+                                : undefined
+                            }
                             draggable={false}
                             onLoad={(e) => {
                               const img = e.currentTarget;
@@ -644,7 +786,7 @@ export default function ImageCycle({
                           />
                           <button
                             type="button"
-                            className="pointer-events-auto absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 cursor-pointer touch-manipulation items-center justify-center rounded-full border-0 bg-transparent p-0 ease-out [-webkit-tap-highlight-color:transparent]"
+                            className={`pointer-events-auto absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 ease-out [-webkit-tap-highlight-color:transparent] ${CHROME_TOUCH}`}
                             style={{
                               width: tapTargetPx,
                               height: tapTargetPx,
@@ -687,7 +829,12 @@ export default function ImageCycle({
                         <img
                           src={src}
                           alt=""
-                          className="h-full w-full touch-none object-contain object-center"
+                          className={`h-full w-full touch-none object-contain${imgObjPos ? "" : " object-center"}`}
+                          style={
+                            imgObjPos
+                              ? ({ objectPosition: imgObjPos } as CSSProperties)
+                              : undefined
+                          }
                           draggable={false}
                           aria-hidden
                         />
@@ -728,10 +875,11 @@ export default function ImageCycle({
             <img
               src={focusedLightboxSrc}
               alt={focusedLightboxAlt}
-              className="pointer-events-auto touch-none object-contain object-center"
+              className={`pointer-events-auto touch-none object-contain${lightboxObjPos ? "" : " object-center"}`}
               style={{
                 maxWidth: `min(${FOCUSED_MAX_WIDTH_PX}px, calc(100vw - ${FOCUSED_PADDING_VW * 2}vw))`,
                 maxHeight: `min(${FOCUSED_MAX_HEIGHT_PX}px, calc(100vh - ${FOCUSED_PADDING_VH * 2}vh))`,
+                ...(lightboxObjPos ? { objectPosition: lightboxObjPos } : {}),
               }}
               draggable={false}
               onClick={(e) => e.stopPropagation()}
@@ -745,6 +893,31 @@ export default function ImageCycle({
           </div>
         </>
       )}
+
+      {coarsePointer &&
+        !reduceMotion &&
+        entrancePhase === "live" &&
+        focusedSlotIndex === null &&
+        nearestNearSlot !== null && (
+          <div
+            className="pointer-events-none fixed inset-0 z-[56]"
+            aria-hidden
+          >
+            <div
+              className="absolute rounded-full border border-white/55 shadow-[0_4px_24px_rgba(0,0,0,0.55)]"
+              style={{
+                width: DWELL_PIE_PX,
+                height: DWELL_PIE_PX,
+                left: pointerPx.x + DWELL_PIE_OFFSET_X,
+                top: pointerPx.y + DWELL_PIE_OFFSET_Y,
+                transform: "translate(-50%, -50%)",
+                background: `conic-gradient(from -90deg, rgba(255,255,255,0.92) 0deg, rgba(255,255,255,0.92) ${
+                  dwellProgress * 360
+                }deg, rgba(32,32,32,0.72) ${dwellProgress * 360}deg, rgba(32,32,32,0.72) 360deg)`,
+              }}
+            />
+          </div>
+        )}
 
       <SquiggleCursor
         mouse={cursor}
@@ -760,7 +933,7 @@ export default function ImageCycle({
           <button
             type="button"
             onClick={() => setFocusedSlotIndex(null)}
-            className="close-btn-circle pointer-events-auto flex items-center justify-center rounded-full border border-white/70 text-white/90 transition-[width,height] duration-200 ease-out"
+            className={`close-btn-circle pointer-events-auto flex items-center justify-center rounded-full border border-white/70 text-white/90 transition-[width,height] duration-200 ease-out ${CHROME_TOUCH}`}
             style={{
               borderWidth: 1,
               width: 24,
@@ -786,7 +959,17 @@ export default function ImageCycle({
         </div>
       )}
 
-      {showChrome && <ArtistCredits />}
+      <div
+        className="pointer-events-none fixed inset-0 z-[60]"
+        style={{
+          opacity: creditsOpaque ? 1 : 0,
+          transition: reduceMotion
+            ? "none"
+            : `opacity ${CHROME_ENTRANCE_FADE_MS}ms ease-out`,
+        }}
+      >
+        <ArtistCredits />
+      </div>
     </>
   );
 }

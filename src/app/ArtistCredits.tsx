@@ -9,6 +9,12 @@ import {
   type Artist,
 } from "./artists";
 import ArtistReelBlock from "./ArtistReelBlock";
+import {
+  CHROME_LABEL,
+  CHROME_LABEL_STATIC,
+  CHROME_NAME,
+  CHROME_TOUCH,
+} from "@/lib/chrome-ui";
 import { withBasePath } from "@/lib/base-path";
 import { VIEWPORT_EDGE_LEFT } from "@/lib/viewport-insets";
 
@@ -70,30 +76,23 @@ function ArtistProfileText({ artist }: { artist: Artist }) {
   );
 }
 
-const nameButtonClass =
-  "w-full border-0 bg-transparent pt-0 pb-1 text-left text-[15px] font-medium uppercase tracking-[0.12em] transition-colors [text-shadow:0_1px_4px_rgba(0,0,0,0.85),0_0_14px_rgba(0,0,0,0.45)]";
-
-const labelClassInteractive =
-  "text-[11px] tracking-[0.055em] text-white/40";
-const labelClassStatic = `pointer-events-none ${labelClassInteractive}`;
+const nameButtonClass = `${CHROME_NAME} w-full border-0 bg-transparent pt-0 pb-1 text-left transition-colors [text-shadow:0_1px_4px_rgba(0,0,0,0.85),0_0_14px_rgba(0,0,0,0.45)]`;
 
 function SceneSupporters() {
-  const linkLogoClass =
-    "inline-block rounded-sm opacity-70 transition-opacity duration-200 ease-out hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/50";
+  const linkLogoClass = `inline-block rounded-sm opacity-88 transition-opacity duration-200 ease-out hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/50 ${CHROME_TOUCH}`;
 
   return (
     <div
-      className="pointer-events-none fixed bottom-[max(1rem,env(safe-area-inset-bottom,0px))] right-[max(1rem,env(safe-area-inset-right,0px))] z-[60] box-border max-w-[min(100vw-2rem,16rem)] md:max-w-[16rem]"
+      className="pointer-events-none fixed bottom-[max(1rem,env(safe-area-inset-bottom,0px))] right-[max(1rem,env(safe-area-inset-right,0px))] z-[60] box-border max-w-[min(100vw-2rem,18rem)] md:max-w-[18rem]"
       aria-labelledby="supported-by-heading"
     >
-      <div className="pointer-events-auto flex flex-col items-end gap-3 text-right">
-        <span
-          id="supported-by-heading"
-          className={`font-doto uppercase ${labelClassInteractive}`}
-        >
+      <div
+        className={`pointer-events-auto flex flex-col items-end gap-3 text-right ${CHROME_TOUCH}`}
+      >
+        <span id="supported-by-heading" className={CHROME_LABEL}>
           Supported by
         </span>
-        <ul className="m-0 flex list-none flex-col items-end gap-2.5 p-0">
+        <ul className="m-0 flex list-none flex-col items-end gap-3 p-0">
           <li>
             <a
               href={VIET_VOICES_URL}
@@ -104,9 +103,9 @@ function SceneSupporters() {
               <img
                 src={LOGO_VIET_VOICES}
                 alt="Viet Voices"
-                width={200}
-                height={80}
-                className="h-[calc(2rem*0.85*0.94)] w-auto max-w-[calc(10rem*0.85*0.94)] object-contain object-right sm:h-[calc(2.25rem*0.85*0.94)]"
+                width={280}
+                height={112}
+                className="h-[clamp(2.35rem,7vw,3.35rem)] w-auto max-w-[min(15rem,46vw)] object-contain object-right sm:h-[clamp(2.6rem,6.5vw,3.5rem)] sm:max-w-[min(17rem,40vw)]"
               />
             </a>
           </li>
@@ -120,9 +119,9 @@ function SceneSupporters() {
               <img
                 src={LOGO_PREBYS}
                 alt="Prebys Foundation"
-                width={180}
-                height={48}
-                className="h-[calc(1.5rem*0.85*1.1*1.1)] w-auto max-w-[calc(9.5rem*0.85*1.1*1.1)] object-contain object-right sm:h-[calc(1.75rem*0.85*1.1*1.1)]"
+                width={240}
+                height={64}
+                className="h-[clamp(1.95rem,5.5vw,2.75rem)] w-auto max-w-[min(13.5rem,42vw)] object-contain object-right sm:h-[clamp(2.15rem,5vw,2.95rem)] sm:max-w-[min(15rem,38vw)]"
               />
             </a>
           </li>
@@ -149,17 +148,17 @@ function SceneCreditsNav({
   onPickCurator?: () => void;
 }) {
   const modalTight =
-    "max-md:gap-y-2 max-md:[&_button]:py-1 max-md:[&_button]:text-[13px] max-md:[&_span.block]:py-0.5 max-md:[&_span.block]:text-[13px]";
+    "max-md:gap-y-2 max-md:[&_button]:py-1 max-md:[&_span.block]:py-0.5";
 
   return (
     <div
-      className={`font-doto m-0 flex w-full flex-col items-start gap-y-2.5 p-0 text-left uppercase ${compactMobile ? modalTight : ""}`}
+      className={`m-0 flex w-full flex-col items-start gap-y-2.5 p-0 text-left uppercase ${compactMobile ? modalTight : ""}`}
     >
       <div className="flex w-full flex-col gap-1">
         <span
           id={artistsHeadingId}
           className={
-            artistsHeadingId ? labelClassInteractive : labelClassStatic
+            artistsHeadingId ? CHROME_LABEL : CHROME_LABEL_STATIC
           }
         >
           Artists
@@ -167,20 +166,20 @@ function SceneCreditsNav({
         <ul className="m-0 flex w-full list-none flex-col items-start gap-0 p-0">
           {ARTISTS.map((a) => {
             const active = highlightId === a.id;
-            const tone = active ? "text-white" : "text-white/55";
+            const tone = active ? "text-white" : "text-white/72";
             return (
               <li key={a.id} className="w-full">
                 {interactive ? (
                   <button
                     type="button"
                     onClick={() => onPickArtist?.(a)}
-                    className={`pointer-events-auto cursor-pointer ${nameButtonClass} ${tone} hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/50`}
+                    className={`pointer-events-auto cursor-pointer ${CHROME_TOUCH} ${nameButtonClass} ${tone} hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/50`}
                   >
                     {a.name}
                   </button>
                 ) : (
                   <span
-                    className={`block py-0.5 text-[15px] font-medium uppercase tracking-[0.12em] ${tone}`}
+                    className={`${CHROME_NAME} block py-0.5 ${tone}`}
                   >
                     {a.name}
                   </span>
@@ -195,7 +194,7 @@ function SceneCreditsNav({
         <span
           id="curated-by-heading"
           className={`mb-0 pt-0 pb-0 ${
-            artistsHeadingId ? labelClassInteractive : labelClassStatic
+            artistsHeadingId ? CHROME_LABEL : CHROME_LABEL_STATIC
           }`}
         >
           Curated by
@@ -204,18 +203,18 @@ function SceneCreditsNav({
           <button
             type="button"
             onClick={() => onPickCurator?.()}
-            className={`pointer-events-auto cursor-pointer ${nameButtonClass} ${
+            className={`pointer-events-auto cursor-pointer ${CHROME_TOUCH} ${nameButtonClass} ${
               highlightId === CURATOR.id
                 ? "text-white"
-                : "text-white/55 hover:text-white"
+                : "text-white/72 hover:text-white"
             } focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/50`}
           >
             {CURATOR.name}
           </button>
         ) : (
           <span
-            className={`block py-0.5 text-[15px] font-medium uppercase tracking-[0.12em] ${
-              highlightId === CURATOR.id ? "text-white" : "text-white/55"
+            className={`${CHROME_NAME} block py-0.5 ${
+              highlightId === CURATOR.id ? "text-white" : "text-white/72"
             }`}
           >
             {CURATOR.name}
@@ -299,7 +298,7 @@ function SceneCreditsStack({
         <button
           type="button"
           id="artist-credits-summary"
-          className="pointer-events-auto flex w-full cursor-pointer items-center gap-2 border-0 bg-transparent py-1.5 pr-1 text-left uppercase outline-none transition-colors focus-visible:ring-2 focus-visible:ring-white/40"
+          className={`pointer-events-auto flex w-full cursor-pointer items-center gap-2 border-0 bg-transparent py-1.5 pr-1 text-left uppercase outline-none transition-colors focus-visible:ring-2 focus-visible:ring-white/40 ${CHROME_TOUCH}`}
           aria-expanded={mobileDockOpen}
           aria-controls="artist-credits-panel"
           aria-label={
@@ -309,7 +308,7 @@ function SceneCreditsStack({
           }
           onClick={() => setMobileDockOpen((o) => !o)}
         >
-          <span className="min-w-0 flex-1 truncate text-[14px] font-medium tracking-widest text-white">
+          <span className="font-doto min-w-0 flex-1 truncate text-[clamp(0.95rem,2.35vw,1.15rem)] font-medium tracking-widest text-white">
             {selectedLabel}
           </span>
           <CreditsChevron open={mobileDockOpen} />
@@ -450,12 +449,12 @@ export default function ArtistCredits() {
         >
           <button
             type="button"
-            className="absolute inset-0 cursor-default bg-black/80 backdrop-blur-sm"
+            className={`absolute inset-0 cursor-default bg-black/80 backdrop-blur-sm ${CHROME_TOUCH}`}
             aria-label="Close"
             onClick={close}
           />
           <div className="pointer-events-none fixed inset-0 z-100001 box-border flex h-full min-h-0 flex-col py-0 ps-[max(0.75rem,env(safe-area-inset-left,0px))] pe-[max(0.75rem,env(safe-area-inset-right,0px))] ">
-            <div className="pointer-events-auto mx-auto flex h-full min-h-0 w-full max-w-full flex-1 flex-col overflow-hidden  md:flex-row-reverse md:items-stretch ">
+            <div className="pointer-events-auto mx-auto flex h-full min-h-0 w-full max-w-full flex-1 flex-col overflow-hidden md:flex-row-reverse md:items-stretch">
               <div
                 ref={profileScrollRef}
                 className="artist-profile-scroll syne-mono box-border min-h-0 min-w-0 w-full flex-1 overflow-y-auto overscroll-contain border-b border-white/10 px-3 pb-[env(safe-area-inset-bottom,0px)] pt-[env(safe-area-inset-top,0px)] max-md:pb-[max(14rem,min(46vh,26rem),env(safe-area-inset-bottom,0px))] md:border-b-0 md:border-t-0 md:px-4 md:pb-[env(safe-area-inset-bottom,0px)]"
@@ -488,7 +487,7 @@ export default function ArtistCredits() {
                 e.stopPropagation();
                 close();
               }}
-              className="close-btn-circle pointer-events-auto flex items-center justify-center rounded-full border border-white/70 text-white/90 transition-[width,height] duration-200 ease-out"
+              className={`close-btn-circle pointer-events-auto flex items-center justify-center rounded-full border border-white/70 text-white/90 transition-[width,height] duration-200 ease-out ${CHROME_TOUCH}`}
               style={{
                 borderWidth: 1,
                 width: 24,

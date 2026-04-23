@@ -82,13 +82,14 @@ export const ARTISTS: Artist[] = [
   {
     id: "jon-chen",
     name: "Jon Chen",
-    tagline: "Artist\nQuantum Friend",
+    tagline:
+      "SD-Based Multimedia Artist\nKumeyaay Territory (San Diego)",
     reelVideoSrc: withBasePath("/videos/Jon.mp4"),
     reelVideoBox: "portrait",
     sections: [
       {
         paragraphs: [
-          "Jon Chen is an artist and “Quantum Friend” whose practice challenges separations between technology, humanity, and nature. Their work seeks pathways toward harmonious co-existence in a moment defined by climate crisis, disconnection, and apathy. Rooted in wonder, they treat play as a radical tool for building toward these futures.",
+          "Jon Chen is an artist whose practice challenges separations between technology, humanity, and nature. Their work seeks pathways toward harmonious co-existence in a moment defined by climate crisis, disconnection, and apathy. Rooted in wonder, they treat play as a radical tool for building toward these futures.",
           "Their ongoing exploration, ANY, is a digital creative ecosystem that oscillates between platform, tool, and artist network—aimed at liberating 21st-century creative tools and human attention to support dreaming and world-building that flows between the individual and collective.",
           "Grafted onto this is an interconnected web of modular “earthen-ware” sculptures grounded in a Chinese American mythopoetic lineage and reaching toward an emergent, decolonized U.S. mythos inspired by indigenous reclamation—recentering ourselves within an already-present, ever-shifting tapestry of cultural constellations guided by a wind older than memory.",
           "Influenced by the 2000s internet, fantasy and sci-fi RPG video games, and the mysteries of both micro and macro natural worlds, Jon’s work cultivates language, structures, and stories capable of holding our growing planetary and technological complexity. Their practice is balanced by an embodied knowing that brings coherence and clarity to these turbulent waters.",

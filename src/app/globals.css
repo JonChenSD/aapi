@@ -60,6 +60,108 @@ body {
   font-weight: 400;
 }
 
+/* Intro recap: shell width matches scene slot proportions; blur/mask from IntroOverlay */
+@keyframes intro-recap-opacity-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.intro-overlay .intro-recap-stage {
+  margin-left: auto;
+  margin-right: auto;
+  max-width: min(28rem, calc(100vw - 2rem));
+}
+
+/* Feathered rounded-rect vignette (intersecting axis fades) — “max” soft edge, no blur on pixels */
+.intro-overlay .intro-recap-stage.intro-recap-stage--feather {
+  -webkit-mask-image:
+    linear-gradient(
+      to right,
+      transparent 0%,
+      #000 17%,
+      #000 83%,
+      transparent 100%
+    ),
+    linear-gradient(
+      to bottom,
+      transparent 0%,
+      #000 14%,
+      #000 86%,
+      transparent 100%
+    );
+  mask-image:
+    linear-gradient(
+      to right,
+      transparent 0%,
+      #000 17%,
+      #000 83%,
+      transparent 100%
+    ),
+    linear-gradient(
+      to bottom,
+      transparent 0%,
+      #000 14%,
+      #000 86%,
+      transparent 100%
+    );
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+}
+
+.intro-overlay .intro-recap-stage.intro-recap-stage--sharp {
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+
+@media (min-width: 768px) {
+  .intro-overlay .intro-recap-stage {
+    max-width: min(420px, 38vw);
+  }
+}
+
+.intro-overlay .intro-recap-video {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  opacity: 0;
+  /* delay matches INTRO_COPY_REVEAL_DELAY_S in IntroOverlay.tsx */
+  animation: intro-recap-opacity-in 1s ease-out 0.5s forwards;
+  pointer-events: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .intro-overlay .intro-recap-video {
+    animation: none;
+    opacity: 1;
+    animation-delay: 0s;
+  }
+}
+
+/* Play dim + icon: same delayed opacity in as recap clip (INTRO_COPY_REVEAL_DELAY_S) */
+.intro-overlay .intro-recap-play-veil {
+  opacity: 0;
+  animation: intro-recap-opacity-in 1s ease-out 0.5s forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .intro-overlay .intro-recap-play-veil {
+    animation: none;
+    opacity: 1;
+  }
+}
+
 /* Intro overlay only — never share selectors with scene (.mind-cycle) */
 @keyframes intro-overlay-word-fade {
   from {
@@ -93,6 +195,18 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .intro-overlay .intro-copy-wisp {
+    -webkit-filter: none;
+    filter: none;
+    transform: none;
+  }
+}
+
+/*
+ * iOS / touch: `filter: url(#…)` on an ancestor breaks opacity keyframes on descendants.
+ * Keep the wisp on fine-pointer desktop only; words still animate on mobile.
+ */
+@media (hover: none) {
   .intro-overlay .intro-copy-wisp {
     -webkit-filter: none;
     filter: none;

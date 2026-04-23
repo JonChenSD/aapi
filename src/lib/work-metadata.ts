@@ -1,5 +1,6 @@
 /**
- * Per-image metadata keyed by public URL path, e.g. "/images/DSC07209.jpg".
+ * Per-image metadata keyed by public URL path, e.g. "/images/DSC07209.jpg"
+ * (`objectPosition` is optional; keys stay unprefixed — scene-data adds basePath when needed).
  * `artists` entries should match `Artist.id` from src/app/artists.ts.
  */
 export type WorkMeta = {
@@ -7,6 +8,11 @@ export type WorkMeta = {
   artists: string[];
   year?: number;
   medium?: string;
+  /**
+   * CSS `object-position` for scene slots + lightbox when the subject sits high
+   * in the frame (e.g. `"center top"` or `"50% 28%"`).
+   */
+  objectPosition?: string;
 };
 
 export type WorkMetadataMap = Record<string, WorkMeta>;
@@ -17,6 +23,15 @@ export function getWorkMeta(
 ): WorkMeta | undefined {
   if (!map) return undefined;
   return map[imageSrc];
+}
+
+export function workObjectPosition(
+  imageSrc: string,
+  map: WorkMetadataMap | undefined
+): string | undefined {
+  const m = getWorkMeta(imageSrc, map);
+  const p = m?.objectPosition?.trim();
+  return p || undefined;
 }
 
 /** Screen reader / visible label when metadata exists. */
